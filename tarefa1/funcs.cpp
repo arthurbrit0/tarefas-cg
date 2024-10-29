@@ -1,5 +1,6 @@
 #include "funcs.h"                                                      // incluindo o arquivo de cabeçalho funcs.h
 #include <cmath>
+#include <algorithm>
 
 Color::Color(int red, int green, int blue) {                            // implementando a classe Color, com o método construtor definindo o tom default como preto
     r = red;
@@ -35,20 +36,34 @@ Ponto3D Ponto3D::normalizar() const {                                   // defin
 }
 
 bool funcs::intersecaoEsfera(const Ponto3D& origem, const Ponto3D& direcao, const Ponto3D& centroEsfera, double rEsfera, double& t) {
-    
     Ponto3D oc = origem - centroEsfera;                                 // calculando o vetor OC, que é a diferença entre a origem do raio e o centro da esfera
     // norma = raiz(x do ponto ao quadrado + y do ponto ao quadrado + z do ponto ao quadrado) --> vetor normalizado é as componentes do vetor divididas pela norma
     double a = direcao.escalar(direcao);                                // calculando o quadrado da norma da direção do raio
     double b = 2.0 * oc.escalar(direcao);                               // calculando o produto escalar entre OC e a direção do raio
     double c = oc.escalar(oc) - rEsfera * rEsfera;                      // calculando o quadrado da norma de OC menos o quadrado do raio da esfera
-
     double delta = b * b - 4 * a * c;                                   // calculando o delta
 
-    if (delta < 0) return false;                                        // se o delta for negativo, não há interseção   
+    if (delta < 0) {                                                    // se o delta for negativo, não há interseção   
+        return false; 
+    }
 
-    t = (-b-std::sqrt(delta))/(2.0 * a);                                // calculando o valor de t, que é o ponto de interseção do raio com a esfera
-    return true;                                                        // se o delta for positivo, há interseção
+    double sqrtDelta = std::sqrt(delta);                                // calculando a raiz de delta
+    double t1 = (-b - sqrtDelta) / (2.0 * a);                           // calculando a primeira raiz da equação quadrática
+    double t2 = (-b + sqrtDelta) / (2.0 * a);                           // calculando a segunda raiz da equação quadrática
+
+    if (t1 > 0 && t2 > 0) {                                             // se existem duas raizes, há dois pontos de intersecao positivos, então pegamos o menor deles e armazenamos em t
+        t = std::min(t1, t2);
+    } else if (t1 > 0) {                                                // se só o t1 for maior que 0, armazenamos ele
+        t = t1;
+    } else if (t2 > 0) {                                                // se só o t2 for maior que 0, armazenamos ele
+        t = t2;
+    } else {                                                            // se nenhum dos dois for maior que 0, não há interseção positiva
+        return false; 
+    }
+
+    return true; 
 }
+
 
 // ::: EXPLICAÇÃO DA FORMULA DA ESFERA :::
 /* 
