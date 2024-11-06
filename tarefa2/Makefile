@@ -1,22 +1,36 @@
-CXX = g++
-CXXFLAGS = -I/usr/include/SDL2 -D_REENTRANT
-LDFLAGS = -lSDL2
-
+# Nome do executável
 TARGET = raytracer
 
-SRCS = functions.cpp
+# Compilador e flags
+CXX = g++
+CXXFLAGS = -Wall -std=c++11
 
-OBJS = $(SRCS:.cpp=.o)
+# Bibliotecas
+LDFLAGS = -lraylib -lm
 
+# Arquivos fonte e objetos
+SRCS = main.cpp funcs.cpp
+OBJS = main.o funcs.o
+
+# Regra principal
 all: $(TARGET)
 
+# Regra para construir o executável
 $(TARGET): $(OBJS)
-	$(CXX) -o $(TARGET) $(OBJS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+# Regra para compilar main.o
+main.o: main.cpp header.h
+	$(CXX) $(CXXFLAGS) -c main.cpp -o main.o
 
+# Regra para compilar funcs.o
+funcs.o: funcs.cpp header.h
+	$(CXX) $(CXXFLAGS) -c funcs.cpp -o funcs.o
+
+# Limpeza dos arquivos compilados
 clean:
 	rm -f $(OBJS) $(TARGET)
 
-.PHONY: all clean
+# Regra para rodar o programa
+run: $(TARGET)
+	./$(TARGET)
