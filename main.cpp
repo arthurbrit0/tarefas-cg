@@ -52,6 +52,7 @@ void renderScene(Esfera &esfera, Plano &chao, Plano &fundo)
             Vetor3D pontoPixel(xCoord, yCoord, -distanciaJanela);
             Raio raio(Vetor3D(0.0f, 0.0f, 0.0f), pontoPixel);
 
+            // Reinicializar variáveis de interseção para o raio primário
             float tEsfera = INFINITY, tChao = INFINITY, tFundo = INFINITY;
             bool intersecaoEsfera = esfera.intersecao(raio, tEsfera);
             bool intersecaoChao = chao.intersecao(raio, tChao);
@@ -61,6 +62,7 @@ void renderScene(Esfera &esfera, Plano &chao, Plano &fundo)
             Vetor3D corFinal(0.0f, 0.0f, 0.0f);
             Vetor3D kd, ke, ka;
             int brilho;
+            Vetor3D normalIntersecao;
 
             if (intersecaoEsfera && tEsfera < tFinal)
             {
@@ -69,6 +71,7 @@ void renderScene(Esfera &esfera, Plano &chao, Plano &fundo)
                 ke = keEsfera;
                 ka = kaEsfera;
                 brilho = brilhoEsfera;
+                normalIntersecao = (raio.origem + raio.direcao * tEsfera - esfera.centro).normalize();
             }
             if (intersecaoChao && tChao < tFinal)
             {
@@ -77,6 +80,7 @@ void renderScene(Esfera &esfera, Plano &chao, Plano &fundo)
                 ke = keChao;
                 ka = kaChao;
                 brilho = brilhoChao;
+                normalIntersecao = normalChao;
             }
             if (intersecaoFundo && tFundo < tFinal)
             {
@@ -85,29 +89,66 @@ void renderScene(Esfera &esfera, Plano &chao, Plano &fundo)
                 ke = keFundo;
                 ka = kaFundo;
                 brilho = brilhoFundo;
+                normalIntersecao = normalFundo;
             }
 
             if (tFinal < INFINITY)
             {
+                // calculando o ponto de intersecao do raio com o prox objeto
                 Vetor3D pontoIntersecao = raio.origem + raio.direcao * tFinal;
-                Vetor3D normalIntersecao = (tFinal == tEsfera) ? (pontoIntersecao - esfera.centro).normalize()
-                                                               : (tFinal == tChao ? normalChao : normalFundo);
 
-                Vetor3D direcaoLuz = (posicaoLuz - pontoIntersecao).normalize();
-                Vetor3D direcaoVisao = -raio.direcao.normalize();
-                Vetor3D luzRefletida = normalIntersecao * 2 * normalIntersecao.dot(direcaoLuz) - direcaoLuz;
+                // calculando a direcao da visao do observador ate o ponto de inters
+                Vetor3D direcaoVisao = -raio.direcao;
 
-                float intensidadeDifusa = std::max(0.0f, normalIntersecao.dot(direcaoLuz));
-                float intensidadeEspecular = std::pow(std::max(0.0f, luzRefletida.dot(direcaoVisao)), brilho);
+                // calculando o vetor que aponta para a luz partindo do ponto de intersecao
+                Vetor3D l = (posicaoLuz - pontoIntersecao).normalize();
 
-                Vetor3D corDifusa = kd * intensidadeLuz * intensidadeDifusa;
-                Vetor3D corEspecular = ke * intensidadeLuz * intensidadeEspecular;
+                // raio de sombra apontando para a posicao da luz (10 ^-4 para evitar intersecao com o mesmo objeto)
+                Raio raioSombra(pontoIntersecao + normalIntersecao * 1e-4f, posicaoLuz);
+
+                // verificando interseccao com a esfera para sombras no chao e fundo
+                float tEsferaSombra = INFINITY;
+                bool sombraEsfera = false;
+                // se o objeto atual nao for a esfera, verificar se o raio da sombra intercepta
+                if (tFinal != tEsfera)
+                {
+                    sombraEsfera = esfera.intersecao(raioSombra, tEsferaSombra);
+                }
+
+                // booleano para determinar se o ponto de intersecao esta em sombra
+                bool emSombra = sombraEsfera && tEsferaSombra < (posicaoLuz-pontoIntersecao).norma();
+
+                float intensidadeDifusa = 0.0f;
+                float intensidadeEspecular = 0.0f;
+
+                // se o ponto nao estiver em sombra, caculamos as intensidades difusa e especular
+                if (!emSombra)
+                {
+                    intensidadeDifusa = std::max(0.0f, normalIntersecao.dot(l));
+                    Vetor3D r = (normalIntersecao * 2 * normalIntersecao.dot(l) - l).normalize();
+                    intensidadeEspecular = std::pow(std::max(0.0f, r.dot(direcaoVisao.normalize())), brilho);
+                }
+
+                // calculamos as componentes da cor ambiente
                 Vetor3D corAmbiente = ka * intensidadeAmbiente;
-                corFinal = corDifusa + corEspecular + corAmbiente;
+                Vetor3D corFinal = corAmbiente;
 
-                int r = std::min(255, std::max(0, static_cast<int>(corFinal.x * 255)));
-                int g = std::min(255, std::max(0, static_cast<int>(corFinal.y * 255)));
-                int b = std::min(255, std::max(0, static_cast<int>(corFinal.z * 255)));
+                // se o ponto nao estiver em sombra, calculamos as componentes difusa e especular
+                if (!emSombra)
+                {
+                    Vetor3D corDifusa = kd * intensidadeLuz * intensidadeDifusa;
+                    Vetor3D corEspecular = ke * intensidadeLuz * intensidadeEspecular;
+                    corFinal = corFinal + corDifusa + corEspecular; // Modificado para evitar o uso de +=
+                }
+
+                // Limitar as componentes de cor ao intervalo [0, 1]
+                corFinal.x = std::min(1.0f, std::max(0.0f, corFinal.x));
+                corFinal.y = std::min(1.0f, std::max(0.0f, corFinal.y));
+                corFinal.z = std::min(1.0f, std::max(0.0f, corFinal.z));
+
+                int r = static_cast<int>(corFinal.x * 255);
+                int g = static_cast<int>(corFinal.y * 255);
+                int b = static_cast<int>(corFinal.z * 255);
 
                 DrawPixel(coluna, linha, Color{(unsigned char)r, (unsigned char)g, (unsigned char)b, 255});
             }
